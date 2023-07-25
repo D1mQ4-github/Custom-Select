@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom Accessible Select</title>
+</head>
+
+<body>
+  <h1>Custom Accessible Select</h1>
+
+  <!-- index.html -->
+  <custom-select placeholder="Select an option" data-value="option1" data-name="age">
+    <li data-value="option1">Option 1</li>
+    <li data-value="option2">Option 2</li>
+    <li data-value="option3">Option 3</li>
+    <!-- Add more options here -->
+  </custom-select>
+
+
+  <script>
+    // custom-select.js
+    class CustomSelect extends HTMLElement {
+      constructor() {
+        super();
+        this.value = this.dataset.value;
+        this.attachShadow({ mode: 'open' });
+      }
+
+      connectedCallback() {
+        const template = document.createElement('template');
+        template.innerHTML = `
+      <style>
+        /* Add your custom styling for the select component here */
+        :host {
+          display: inline-block;
+          position: relative;
+        }
+
+        .selected-option {
+          cursor: pointer;
+          padding: 8px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+
+        .options {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          z-index: 1;
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: none;
+          background-color: #fff;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+
+        .options li {
+          padding: 8px;
+          cursor: pointer;
+        }
+
+        .options li:hover {
+          background-color: #f2f2f2;
+        }
+      </style>
+      <div class="selected-option" tabindex="0" role="button" aria-haspopup="listbox" aria-expanded="false">
+        ${this.getAttribute('placeholder') || 'Select an option'}
+      </div>
+      <ul class="options" role="listbox" aria-hidden="true">
+        ${this.getOptionsHTML()}
+      </ul>
+    `;
+        this.shadowRoot.appendChild(template.content.cloneNode(true));
+
+        this.selectedOptionEl = this.shadowRoot.querySelector('.selected-option');
+        this.optionsContainer = this.shadowRoot.querySelector('.options');
+        this.options = Array.from(this.shadowRoot.querySelectorAll('.options li'));
+        this.currentOption = this.options.find(item => item.hasAttribute('data-selected'));
+
+        this.selectedOptionEl.addEventListener('click', this.toggleOptions.bind(this));
+        this.optionsContainer.addEventListener('keydown', this.handleOptionsKeyDown.bind(this));
+        this.selectedOptionEl.addEventListener('keydown', this.handleSelectKeyDown.bind(this));
+        this.options.forEach((option) => option.addEventListener('click', this.handleOptionClick.bind(this)));
+        this.options.forEach((option) => option.addEventListener('keydown', this.handleOptionKeyDown.bind(this)));
+
+        document.addEventListener('click', (event) => {
+          if (!this.contains(event.target)) this.closeOptions();
+        });
+
+        // Create the hidden input in the shadow DOM
+        this.inputElement = document.createElement('input');
+        this.inputElement.type = 'hidden';
+        this.inputElement.name = this.dataset.name;
+        this.appendChild(this.inputElement);
+
+        //Set initial selected value
+        if (this.value) {
+          this.selectedOptionEl.textContent = this.currentOption.textContent;
+          this.inputElement.value = this.value;
+        }
+      }
+
+      toggleOptions() {
+        const expanded = this.selectedOptionEl.getAttribute('aria-expanded') === 'true';
+
+        expanded ? this.closeOptions() : this.openOptions();
+      }
+
+      handleSelectKeyDown(event) {
+        if (event.key === 'ArrowDown' && this.optionsContainer.style.display === 'block') {
+          event.preventDefault();
+          const currentIndex = this.getCurrentOptionIndex();
+          const newIndex = (currentIndex + 1) % this.options.length;
+          this.focusOptionAtIndex(newIndex);
+        } else if (event.key === 'ArrowUp' && this.optionsContainer.style.display === 'block') {
+          event.preventDefault();
+          const currentIndex = this.getCurrentOptionIndex();
+          const newIndex = (currentIndex - 1 + this.options.length) % this.options.length;
+          this.focusOptionAtIndex(newIndex);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          this.closeOptions();
+          this.selectedOptionEl.focus();
+        } else if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          this.toggleOptions();
+        }
+      }
+
+      handleOptionsKeyDown(event) {
+        if (event.key === 'ArrowDown' && this.optionsContainer.style.display === 'block') {
+          event.preventDefault();
+          const currentIndex = this.getCurrentOptionIndex();
+          const newIndex = (currentIndex + 1) % this.options.length;
+          this.focusOptionAtIndex(newIndex);
+        } else if (event.key === 'ArrowUp' && this.optionsContainer.style.display === 'block') {
+          event.preventDefault();
+          const currentIndex = this.getCurrentOptionIndex();
+          const newIndex = (currentIndex - 1 + this.options.length) % this.options.length;
+          this.focusOptionAtIndex(newIndex);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          this.closeOptions();
+          this.selectedOptionEl.focus();
+        }
+      }
+
+      handleOptionKeyDown(event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          const target = event.target;
+          const value = target.dataset.value;
+          this.selectedOptionEl.textContent = target.textContent;
+          this.closeOptions()
+          this.dispatchEvent(new CustomEvent('change', { detail: { value } }));
+          this.selectedOptionEl.focus();
+
+          // Update the hidden input value with the selected option's value
+          this.inputElement.value = value;
+        }
+      }
+
+      handleOptionClick(event) {
+        const target = event.target;
+        const value = target.dataset.value;
+        this.selectedOptionEl.textContent = target.textContent;
+        this.closeOptions();
+        this.dispatchEvent(new CustomEvent('change', { detail: { value } }));
+        this.selectedOptionEl.focus();
+
+        // Update the hidden input value with the selected option's value
+        this.inputElement.value = value;
+      }
+
+      // Method to update the hidden input's value
+      updateInputValue(value) {
+        this.inputElement.value = value;
+      }
+
+      // Method to get the selected value
+      getSelectedValue() {
+        return this.inputElement.value;
+      }
+
+      openOptions() {
+        this.selectedOptionEl.setAttribute('aria-expanded', 'true');
+        this.optionsContainer.style.display = 'block';
+        const focusedIndex = this.getSelectedOptionIndex() < 0 ? 0 : this.getSelectedOptionIndex();
+        this.focusOptionAtIndex(focusedIndex);
+      }
+
+      closeOptions() {
+        this.selectedOptionEl.setAttribute('aria-expanded', 'false');
+        this.optionsContainer.style.display = 'none';
+      }
+
+      getCurrentOptionIndex() {
+        return this.options.indexOf(this.shadowRoot.activeElement);
+      }
+
+      getSelectedOptionIndex() {
+        const value = this.selectedOptionEl.textContent.trim();
+        return this.options.findIndex((option) => option.textContent.trim() === value);
+      }
+
+      focusOptionAtIndex(index) {
+        if (index >= 0 && index < this.options.length) {
+          this.options[index].focus();
+        }
+      }
+
+      getOptionsHTML() {
+        return Array.from(this.querySelectorAll('li')).map(
+          (option) => {
+            const isSelected = this.value && option.dataset.value === this.value;
+            return `<li data-value="${option.dataset.value}" tabindex="-1" ${isSelected && 'data-selected'}>${option.textContent}</li>`;
+          }
+        ).join('');
+      }
+    }
+
+    customElements.define('custom-select', CustomSelect);
+
+  </script>
+</body>
+
+</html>
